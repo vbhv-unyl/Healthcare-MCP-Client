@@ -1,0 +1,6 @@
+.streamlit/
+.env
+.venv/
+local.settings.json
+*/__pycache__/
+__pycache__
