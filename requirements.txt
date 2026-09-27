@@ -1,0 +1,8 @@
+dotenv
+streamlit>=1.38
+requests>=2.32
+mcp>=1.28,<2
+langchain-mcp-adapters>=0.3,<0.4
+langgraph>=1.2
+langchain-core>=0.3
+langchain-openai>=0.2

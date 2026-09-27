@@ -47,6 +47,7 @@ and API key, neither available in the environment this was built in.
 
 import asyncio
 import os
+import threading
 from typing import Annotated, Sequence, TypedDict
 
 from langchain_core.messages import BaseMessage, SystemMessage
@@ -104,6 +105,31 @@ def _compile_graph(tools: list, llm=None):
     return graph.compile()
 
 
+# ONE persistent event loop, reused for every build_agent()/ask() call --
+# NOT asyncio.run(), which creates and destroys a fresh loop on every
+# single call. That mismatch is exactly what causes "Event loop is
+# closed" on a second call: AzureChatOpenAI's (and the MCP client's)
+# internal async HTTP client lazily binds itself to whichever loop is
+# running the first time it's actually used, then breaks the next time a
+# DIFFERENT, freshly-created loop tries to reuse the same client object --
+# confirmed directly by reproducing this exact failure with a minimal
+# stand-in before writing this fix, not assumed from memory.
+#
+# A module-level loop is shared across every Streamlit session in this
+# process (Streamlit runs sessions as threads, not separate processes) --
+# fine for this single-tester testing setup, but NOT safe for two people
+# using the app at the truly same moment (asyncio loops aren't meant to be
+# run_until_complete'd concurrently from multiple threads). Revisit this
+# if this setup ever needs real concurrent multi-user use.
+_loop = asyncio.new_event_loop()
+_loop_lock = threading.Lock()
+
+
+def _run(coro):
+    with _loop_lock:
+        return _loop.run_until_complete(coro)
+
+
 async def _build_agent_async(user_id: str):
     client = MultiServerMCPClient(
         {
@@ -119,8 +145,8 @@ async def _build_agent_async(user_id: str):
 
 
 def build_agent(user_id: str):
-    """Sync wrapper -- Streamlit's script-rerun model has no running event loop by default, so asyncio.run() here is safe."""
-    return asyncio.run(_build_agent_async(user_id))
+    """Sync wrapper -- runs on the one persistent loop (_loop), not a fresh one, so it shares a loop with every later ask() call."""
+    return _run(_build_agent_async(user_id))
 
 
 async def _ask_async(compiled_graph, question: str) -> str:
@@ -130,4 +156,4 @@ async def _ask_async(compiled_graph, question: str) -> str:
 
 
 def ask(compiled_graph, question: str) -> str:
-    return asyncio.run(_ask_async(compiled_graph, question))
+    return _run(_ask_async(compiled_graph, question))

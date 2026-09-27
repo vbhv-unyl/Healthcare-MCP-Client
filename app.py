@@ -1,5 +1,8 @@
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import agent as agent_module
 from api_client import ApiClient
@@ -9,9 +12,8 @@ st.set_page_config(page_title="Medical Report Assistant (test)", layout="wide")
 _client = ApiClient(base_url=st.secrets["FUNCTION_APP_URL"], function_key=st.secrets["FUNCTION_APP_KEY"])
 
 def _get_or_create_persistent_user_id() -> str:
-    user_id = ""
+    user_id = "user1"
     return user_id
-
 
 if "user_id" not in st.session_state:
     try:
