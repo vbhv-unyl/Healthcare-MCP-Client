@@ -35,7 +35,7 @@ if "user_id" not in st.session_state:
 # =============================================================================
 
 if "uploaded_docs" not in st.session_state:
-    st.session_state["uploaded_docs"] = []  # list of {"doc_id":..., "filename":...}
+    st.session_state["uploaded_docs"] = []
 
 with st.sidebar:
     st.subheader("Upload a report")

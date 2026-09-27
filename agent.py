@@ -1,50 +1,3 @@
-"""
-MCP client + a hand-rolled LangGraph ReAct agent -- not the prebuilt
-create_react_agent helper this replaces, but a StateGraph built by hand:
-an "agent" node that calls the LLM, a "tools" node (ToolNode) that
-executes whatever tool calls it requested, and a conditional edge routing
-between them based on whether the LLM's last message actually contains a
-tool call.
-
-Ported from a hand-written example with a few real bugs fixed along the
-way, worth naming since they'd otherwise silently break this:
-- add_conditional_edges (plural) -- the original called
-  add_conditional_edge (singular), which doesn't exist on StateGraph;
-  confirmed directly against the installed library, not assumed.
-- should_continue's routing map didn't match what the function actually
-  returns -- it returned "continue"/"end", but the map's keys were
-  "continue"/"exit", so a normal (non-tool-calling) response would have
-  hit a routing error on the very first turn that didn't call a tool.
-- should_continue's return type annotation said -> AgentState; it
-  returns a plain string used to select an edge, never agent state.
-
-Tools are NOT hand-written @tool-decorated functions -- they're loaded
-from the MCP server via MultiServerMCPClient, same mechanism the
-create_react_agent-based version used. user_id is still bound via an
-x-user-id request header, not a tool parameter -- see this project's
-server.py for why: a Context-typed parameter is excluded from the tool's
-schema entirely (confirmed directly, not assumed), so the model has no
-field to put a user_id into, correct or otherwise.
-
-The chat model is Azure OpenAI (AzureChatOpenAI), not the generic
-"openai:gpt-4.1" provider string the earlier version used -- matching
-the rest of this project, which is Azure-only throughout (Azure OpenAI
-embeddings, Azure AI Search, Azure Functions, Azure SQL). This assumes
-the SAME Azure OpenAI resource already used for embeddings also hosts a
-chat-capable deployment: it reuses AZURE_OPENAI_ENDPOINT/AZURE_OPENAI_KEY
-and adds one new env var, AZURE_OPENAI_CHAT_DEPLOYMENT, for the
-deployment name specifically. If the chat model actually lives on a
-different Azure OpenAI resource, this needs its own separate
-endpoint/key vars instead -- not assumed here.
-
-Verified: MCP tool loading, and this exact graph's construction and
-routing logic (should_continue correctly selecting "tools" vs "end"),
-against a real running MCP server and a mock LLM standing in for
-AzureChatOpenAI. NOT verified: the LLM actually reasoning through a
-question end to end -- that needs a real Azure OpenAI chat deployment
-and API key, neither available in the environment this was built in.
-"""
-
 import asyncio
 import os
 import threading
@@ -84,7 +37,6 @@ def _build_llm(tools: list) -> AzureChatOpenAI:
 
 
 def _compile_graph(tools: list, llm=None):
-    """llm is injectable so tests can supply a mock instead of a real AzureChatOpenAI -- see this file's tests."""
     llm = llm if llm is not None else _build_llm(tools)
 
     async def model_call(state: AgentState) -> AgentState:
@@ -124,11 +76,9 @@ def _compile_graph(tools: list, llm=None):
 _loop = asyncio.new_event_loop()
 _loop_lock = threading.Lock()
 
-
 def _run(coro):
     with _loop_lock:
         return _loop.run_until_complete(coro)
-
 
 async def _build_agent_async(user_id: str):
     client = MultiServerMCPClient(
@@ -136,7 +86,7 @@ async def _build_agent_async(user_id: str):
             "medical_reports": {
                 "url": os.environ.get("MCP_SERVER_URL", "http://localhost:8899/mcp"),
                 "transport": "streamable_http",
-                "headers": {"x-user-id": user_id},  # the actual binding -- see this file's module docstring
+                "headers": {"x-user-id": user_id},
             }
         }
     )
