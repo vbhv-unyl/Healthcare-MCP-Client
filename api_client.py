@@ -1,6 +1,6 @@
 import requests
 
-_TIMEOUT_SECONDS = 30
+TIMEOUT_SECONDS = 30
 
 class ApiClient:
     def __init__(self, base_url: str, function_key: str):
@@ -13,7 +13,7 @@ class ApiClient:
             params={"user_id": user_id, "filename": filename},
             data=file_bytes,
             headers={**self._headers, "Content-Type": content_type},
-            timeout=_TIMEOUT_SECONDS,
+            timeout=TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         return response.json()
@@ -23,7 +23,7 @@ class ApiClient:
             f"{self._base_url}/api/documents/{doc_id}",
             params={"user_id": user_id},
             headers=self._headers,
-            timeout=_TIMEOUT_SECONDS,
+            timeout=TIMEOUT_SECONDS,
         )
         response.raise_for_status()
         return response.json()
